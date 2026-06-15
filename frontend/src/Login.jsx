@@ -3,12 +3,15 @@ import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 export default function Login() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
+  
+  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // 🔄 قراءة البيانات تلقائياً للحفاظ على الجلسة دون تنبيهات ESLint
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
     const savedToken = localStorage.getItem('token');
@@ -34,8 +37,44 @@ export default function Login() {
       setUser(response.data.user);
     } catch (err) {
       console.error(err);
-      setError(t('error_auth'));
+      setError(i18n.language.startsWith('fr') ? "Adresse email ou mot de passe incorrect." : "Incorrect email or password.");
     }
+  };
+
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (password !== confirmPassword) {
+      setError(i18n.language.startsWith('fr') ? "Les mots de passe ne correspondent pas." : "Passwords do not match.");
+      return;
+    }
+
+    try {
+      await axios.post('http://127.0.0.1:8000/auth/signup', {
+        email: email,
+        password: password
+      });
+
+      setSuccess(i18n.language.startsWith('fr') ? "Compte créé avec succès ! Connectez-vous." : "Account created successfully! Please login.");
+      setTimeout(() => {
+        setIsSignUp(false);
+        setPassword('');
+        setConfirmPassword('');
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError(i18n.language.startsWith('fr') ? "Une erreur est survenue lors de l'inscription." : "An error occurred during registration.");
+      }
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = "https://accounts.google.com/signin";
   };
 
   const handleLogout = () => {
@@ -44,7 +83,40 @@ export default function Login() {
     setUser(null);
   };
 
-  // شاشة الترحيب الرسمية البسيطة (عند نجاح الاتصال)
+  const content = {
+    fr: {
+      connexion: "Connexion",
+      inscription: "S'inscrire",
+      subtitle: "Plateforme d'enquêtes de satisfaction",
+      google: "Se connecter avec Google",
+      or: "OU CONTINUER AVEC",
+      email: "Email",
+      password: "Mot de passe",
+      confirmPassword: "Confirmer le mot de passe",
+      noAccount: "Pas de compte ?",
+      haveAccount: "Déjà un compte ?",
+      welcome: "Bienvenue",
+      logout: "Se déconnecter"
+    },
+    en: {
+      connexion: "Sign In",
+      inscription: "Sign Up",
+      subtitle: "Satisfaction Survey Platform",
+      google: "Sign in with Google",
+      or: "OR CONTINUE WITH",
+      email: "Email Address",
+      password: "Password",
+      confirmPassword: "Confirm Password",
+      noAccount: "Don't have an account?",
+      haveAccount: "Already have an account?",
+      welcome: "Welcome",
+      logout: "Logout"
+    }
+  };
+
+  const currentLang = i18n.language.startsWith('fr') ? 'fr' : 'en';
+  const text = content[currentLang];
+
   if (user) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 font-sans">
@@ -52,7 +124,7 @@ export default function Login() {
           <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white text-xl font-bold mx-auto mb-4 shadow-sm">
             ✓
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">{t('welcome')} !</h1>
+          <h1 className="text-2xl font-bold text-slate-800 mb-1">{text.welcome} !</h1>
           <p className="text-slate-500 text-sm mb-6">{user.email}</p>
           <div className="mb-6">
             <span className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-semibold uppercase tracking-wider">
@@ -63,27 +135,23 @@ export default function Login() {
             onClick={handleLogout}
             className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-all"
           >
-            Se déconnecter
+            {text.logout}
           </button>
         </div>
       </div>
     );
   }
 
-  // 🎨 التطابق التام مع تصميم دفتر التحملات (Pure White & Purple Layout)
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center font-sans px-4 relative">
-      {/* زر تغيير اللغة مدمج بشكل خفيف */}
       <button 
         onClick={toggleLanguage}
-        className="absolute top-6 right-6 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition-all"
+        className="absolute top-6 right-6 px-3 py-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-50 shadow-sm transition-all flex items-center gap-1"
       >
-        {i18n.language.startsWith('fr') ? '🌐 EN' : '🌐 FR'}
+        🌐 {i18n.language.startsWith('fr') ? 'EN' : 'FR'}
       </button>
 
       <div className="w-full max-w-[440px] bg-white border border-slate-100 p-10 rounded-2xl shadow-sm">
-        
-        {/* الأيقونة البنفسجية في الأعلى */}
         <div className="flex justify-center mb-4">
           <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-600/10">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -92,22 +160,27 @@ export default function Login() {
           </div>
         </div>
 
-        {/* العناوين */}
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Connexion</h2>
-          <p className="text-sm text-slate-400 font-normal">Plateforme d'enquêtes de satisfaction</p>
+          <h2 className="text-2xl font-bold text-slate-900 mb-1">
+            {isSignUp ? text.inscription : text.connexion}
+          </h2>
+          <p className="text-sm text-slate-400 font-normal">{text.subtitle}</p>
         </div>
 
-        {/* رسائل الخطأ إن وجدت */}
         {error && (
           <div className="mb-4 p-3 bg-rose-50 border border-rose-100 text-rose-500 text-xs rounded-xl text-center font-medium">
             {error}
           </div>
         )}
+        {success && (
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 text-xs rounded-xl text-center font-medium">
+            {success}
+          </div>
+        )}
 
-        {/* زر Google العلوي كما في الصورة */}
         <button
           type="button"
+          onClick={handleGoogleLogin}
           className="w-full py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl flex items-center justify-center gap-2.5 transition-all mb-5"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -116,59 +189,105 @@ export default function Login() {
             <path fill="#FBBC05" d="M5.16 14.71c-.24-.72-.38-1.49-.38-2.31s.14-1.59.38-2.31l-3.87-3C.47 8.77 0 10.33 0 12s.47 3.23 1.29 4.89l3.87-3.18z"/>
             <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 15.03 1 12 1 7.24 1 3.21 3.73 1.29 7.71l3.87 3C6.11 7.65 8.78 5.04 12 5.04z"/>
           </svg>
-          Se connecter avec Google
+          {text.google}
         </button>
 
-        {/* خط الفصل (OU CONTINUER AVEC) */}
         <div className="relative my-6 flex items-center justify-center">
           <div className="border-t border-slate-100 w-full"></div>
           <span className="absolute bg-white px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-            OU CONTINUER AVEC
+            {text.or}
           </span>
         </div>
 
-        {/* نموذج تسجيل الدخول */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm placeholder-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-              placeholder="email@example.com"
-            />
-          </div>
+        {!isSignUp ? (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">{text.email}</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                placeholder="email@example.com"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Mot de passe</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm placeholder-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-              placeholder="••••••••"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">{text.password}</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm"
+                placeholder="••••••••"
+              />
+            </div>
 
-          {/* زر التوصيل البنفسجي المشرق */}
-          <button
-            type="submit"
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm shadow-indigo-600/10 transition-all active:scale-[0.99] mt-2"
-          >
-            Se connecter
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all active:scale-[0.99] mt-2"
+            >
+              {text.connexion}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSignUp} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">{text.email}</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                placeholder="email@example.com"
+              />
+            </div>
 
-        {/* رابط إنشاء حساب السفلي */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">{text.password}</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">{text.confirmPassword}</label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all active:scale-[0.99] mt-2"
+            >
+              {text.inscription}
+            </button>
+          </form>
+        )}
+
         <div className="text-center mt-6">
           <p className="text-xs text-slate-400">
-            Pas de compte ?{' '}
-            <a href="#signup" className="text-indigo-600 font-semibold hover:underline">
-              S'inscrire
-            </a>
+            {isSignUp ? text.haveAccount : text.noAccount}{' '}
+            <button 
+              onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccess(''); }}
+              className="text-indigo-600 font-bold hover:underline focus:outline-none ml-1"
+            >
+              {isSignUp ? text.connexion : text.inscription}
+            </button>
           </p>
         </div>
 

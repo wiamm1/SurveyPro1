@@ -1,0 +1,11 @@
+services:
+  postgres_db:
+    image: postgres:15
+    container_name: surveypro-db
+    environment:
+      POSTGRES_USER: survey_admin
+      POSTGRES_PASSWORD: survey123
+      POSTGRES_DB: surveypro_db
+    ports:
+      - "5435:5432"
+    restart: always
