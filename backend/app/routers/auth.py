@@ -19,6 +19,7 @@ from app.core.config import (
     SECRET_KEY,
     ALGORITHM,
 )
+from app.core.roles import UserRole
 from app.core.security import (
     get_password_hash,
     verify_password,
@@ -57,6 +58,7 @@ def get_current_user(
 
         # Récupérer l'email stocké dans "sub"
         email: str = payload.get("sub")
+        token_company_id = payload.get("company_id")
 
         if email is None:
             raise credentials_exception
@@ -75,7 +77,15 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
-    return user
+    return {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "company_id": user.company_id,
+        "is_active": user.is_active,
+        "name": user.name,
+        "token_company_id": token_company_id,
+    }
 
 
 # ==========================
@@ -178,13 +188,16 @@ def google_callback(code: str | None = None, db: Session = Depends(get_db)):
 
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
-        user = models.User(email=email, hashed_password="", role="user")
+        company = models.Company(name=f"Workspace - {email}")
+        db.add(company)
+        db.flush()
+        user = models.User(email=email, hashed_password="", role=UserRole.viewer, company_id=company.id)
         db.add(user)
         db.commit()
         db.refresh(user)
 
-    app_token = create_access_token(subject=user.email, role=user.role)
-    redirect_url = f"{FRONTEND_URL}/login?{urlencode({'token': app_token, 'email': user.email, 'role': user.role})}"
+    app_token = create_access_token(subject=user.email, role=user.role, company_id=user.company_id)
+    redirect_url = f"{FRONTEND_URL}/login?{urlencode({'token': app_token, 'email': user.email, 'role': user.role.value if hasattr(user.role, 'value') else user.role, 'company_id': user.company_id or ''})}"
     return RedirectResponse(redirect_url)
 
 
@@ -212,10 +225,15 @@ def signup(
     # Hasher le mot de passe
     hashed_pwd = get_password_hash(user_data.password)
 
+    company = models.Company(name=f"Workspace - {user_data.email}")
+    db.add(company)
+    db.flush()
+
     new_user = models.User(
         email=user_data.email,
         hashed_password=hashed_pwd,
-        role="user"
+        role=UserRole.viewer
+        ,company_id=company.id
     )
 
     db.add(new_user)
@@ -253,7 +271,8 @@ def login(
     # Générer le JWT
     access_token = create_access_token(
         subject=user.email,
-        role=user.role
+        role=user.role,
+        company_id=user.company_id,
     )
 
     return {
@@ -261,6 +280,7 @@ def login(
         "token_type": "bearer",
         "user": {
             "email": user.email,
-            "role": user.role
+            "role": user.role.value if hasattr(user.role, "value") else user.role,
+            "company_id": user.company_id,
         }
     }

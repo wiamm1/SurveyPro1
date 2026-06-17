@@ -1,9 +1,26 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Enum as SQLEnum
+from enum import Enum
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Enum as SQLEnum, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
 
 from app.core.roles import UserRole
+
+
+class SurveyStatus(str, Enum):
+    draft = "draft"
+    active = "active"
+    inactive = "inactive"
+
+
+class QuestionType(str, Enum):
+    radio = "radio"
+    checkbox = "checkbox"
+    text_short = "text_short"
+    text_long = "text_long"
+    scale = "scale"
+    matrix = "matrix"
+    date = "date"
 
 # =========================================================================
 # 👤 1. جدول المستخدمين (Users)
@@ -39,15 +56,26 @@ class Survey(Base):
     __tablename__ = "surveys"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    template_id = Column(Integer, ForeignKey("survey_templates.id", ondelete="SET NULL"), nullable=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(String, default="Active")  # الحالات: Active, Draft, Archived
+    status = Column(String, default=SurveyStatus.draft.value, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
     sections_count = Column(Integer, default=0)
     questions_count = Column(Integer, default=0)
 
+    company = relationship("Company")
+    creator = relationship("User", foreign_keys=[created_by])
+    template = relationship("SurveyTemplate", foreign_keys=[template_id])
+
     # 🔄 العلاقة مع الأقسام: إذا حُذف الاستبيان تُحذف جميع أقسامه تلقائياً (CASCADE)
     sections = relationship("Section", back_populates="survey", cascade="all, delete-orphan", order_by="Section.order_index.asc()")
+    questions = relationship("Question", back_populates="survey", cascade="all, delete-orphan")
+    responses = relationship("SurveyResponse", back_populates="survey", cascade="all, delete-orphan")
 
 
 # =========================================================================
@@ -60,6 +88,7 @@ class Section(Base):
     survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
     order_index = Column(Integer, default=0) # لترتيب الأقسام في الواجهة
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # 🔄 العلاقات
     survey = relationship("Survey", back_populates="sections")
@@ -74,13 +103,17 @@ class Question(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     section_id = Column(Integer, ForeignKey("sections.id", ondelete="CASCADE"), nullable=False)
+    survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
     text = Column(String, nullable=False)
     type = Column(String, nullable=False)  # الأنواع: text, radio, checkbox, rating, date
     is_required = Column(Boolean, default=False)
     order_index = Column(Integer, default=0) # لترتيب الأسئلة داخل القسم
+    settings = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # 🔄 العلاقات
     section = relationship("Section", back_populates="questions")
+    survey = relationship("Survey", back_populates="questions")
     options = relationship("QuestionOption", back_populates="question", cascade="all, delete-orphan", order_by="QuestionOption.order_index.asc()")
 
 
@@ -94,9 +127,36 @@ class QuestionOption(Base):
     question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
     text = Column(String, nullable=False)
     order_index = Column(Integer, default=0) # لترتيب الخيارات (مثلا: أولاً، ثانياً...)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # 🔄 العلاقات
     question = relationship("Question", back_populates="options")
+
+
+class SurveyTemplate(Base):
+    __tablename__ = "survey_templates"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    structure = Column(JSON, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SurveyResponse(Base):
+    __tablename__ = "survey_responses"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    survey = relationship("Survey", back_populates="responses")
+    company = relationship("Company")
 
 
 # Invitations table (placeholder for invite flow)
