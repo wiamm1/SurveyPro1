@@ -1,18 +1,35 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
 
+from app.core.roles import UserRole
+
 # =========================================================================
 # 👤 1. جدول المستخدمين (Users)
 # =========================================================================
+class Company(Base):
+    __tablename__ = "companies"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+
+
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(String, default="user") # مثلاً: admin, user, manager
+    hashed_password = Column(String, nullable=True)
+    role = Column(SQLEnum(UserRole), default=UserRole.viewer, nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)
+    google_id = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    company = relationship("Company")
 
 
 # =========================================================================
@@ -80,3 +97,18 @@ class QuestionOption(Base):
 
     # 🔄 العلاقات
     question = relationship("Question", back_populates="options")
+
+
+# Invitations table (placeholder for invite flow)
+class Invitation(Base):
+    __tablename__ = "invitations"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    email = Column(String, nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)
+    role = Column(SQLEnum(UserRole), default=UserRole.viewer)
+    token = Column(String, nullable=False)
+    sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("Company")
