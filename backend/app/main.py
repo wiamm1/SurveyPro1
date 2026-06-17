@@ -2,8 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine
 from app import models
-from app.routers import auth, admin
 
+# Import des routers
+from app.routers import auth, admin, surveys
+
+# Création automatique des tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SurveyPro API")
@@ -19,8 +22,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Inclusion des routes
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(surveys.router)
 
 @app.get("/")
 def read_root():

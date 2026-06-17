@@ -1,9 +1,13 @@
-import { useState } from 'react';
+// src/Login.jsx
+
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Login() {
   const { i18n } = useTranslation();
+  const navigate = useNavigate(); // 👈 2. تفعيل دالة التوجيه داخل المكون
   
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -17,6 +21,24 @@ export default function Login() {
     const savedToken = localStorage.getItem('token');
     return savedUser && savedToken ? JSON.parse(savedUser) : null;
   });
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const oauthToken = params.get('token');
+    const oauthEmail = params.get('email');
+    const oauthRole = params.get('role') || 'user';
+
+    if (oauthToken && oauthEmail) {
+      localStorage.setItem('token', oauthToken);
+      localStorage.setItem('user', JSON.stringify({ email: oauthEmail, role: oauthRole }));
+      localStorage.setItem('user_role', oauthRole);
+      setUser({ email: oauthEmail, role: oauthRole });
+      window.history.replaceState({}, document.title, '/login');
+      navigate('/surveys', { replace: true });
+    }
+  }, [location.search, navigate]);
 
   const toggleLanguage = () => {
     const nextLang = i18n.language.startsWith('fr') ? 'en' : 'fr';
@@ -32,9 +54,16 @@ export default function Login() {
         password: password
       });
       
+      // 👈 3. التعديل الأساسي: تخزين البيانات والدور والتوجيه فوراً
       localStorage.setItem('token', response.data.access_token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('user_role', response.data.user.role); // تخزين الـ role (سواء admin أو user)
+      
       setUser(response.data.user);
+      
+      // التوجيه التلقائي إلى صفحة إدارة الاستبيانات
+      navigate('/surveys'); 
+      
     } catch (err) {
       console.error(err);
       setError(i18n.language.startsWith('fr') ? "Adresse email ou mot de passe incorrect." : "Incorrect email or password.");
@@ -74,13 +103,15 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = "https://accounts.google.com/signin";
+    window.location.href = 'http://127.0.0.1:8000/auth/google/login';
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('user_role'); // 👈 تنظيف الدور عند تسجيل الخروج
     setUser(null);
+    navigate('/login');
   };
 
   const content = {
@@ -117,29 +148,8 @@ export default function Login() {
   const currentLang = i18n.language.startsWith('fr') ? 'fr' : 'en';
   const text = content[currentLang];
 
-  if (user) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 font-sans">
-        <div className="bg-white border border-slate-100 p-8 rounded-2xl shadow-sm max-w-md w-full text-center">
-          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white text-xl font-bold mx-auto mb-4 shadow-sm">
-            ✓
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">{text.welcome} !</h1>
-          <p className="text-slate-500 text-sm mb-6">{user.email}</p>
-          <div className="mb-6">
-            <span className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-semibold uppercase tracking-wider">
-              Rôle: {user.role}
-            </span>
-          </div>
-          <button 
-            onClick={handleLogout}
-            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-all"
-          >
-            {text.logout}
-          </button>
-        </div>
-      </div>
-    );
+  if (user && localStorage.getItem('token')) {
+    return <Navigate to="/surveys" replace />;
   }
 
   return (

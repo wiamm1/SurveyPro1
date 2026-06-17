@@ -21,3 +21,8 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
+# 🔄 المخطط الجديد المسؤول عن تحديث بيانات المستخدم (تمت إضافته لإصلاح الـ Edit)
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None  # 👈 هادا هو السر اللي غايخلي الـ role يتبدل دابا!

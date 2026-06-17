@@ -1,13 +1,9 @@
 from datetime import datetime, timedelta
 from typing import Any, Union
-import jwt
+from jose import jwt
 import bcrypt  # On utilise directement bcrypt sans passlib
 
-# Configuration du JWT
-SECRET_KEY = "SUPER_SECRET_KEY_FOR_SURVEYPRO_PROJECT_2026"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
+from app.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Vérifier si le mot de passe correspond au hash stocké"""
     try:
@@ -33,6 +29,10 @@ def create_access_token(subject: Union[str, Any], role: str, expires_delta: time
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"exp": expire, "sub": str(subject), "role": role}
+    to_encode = {
+        "exp": expire, 
+        "sub": str(subject), 
+        "role": str(role) # تأكدي من تحويلها لنص
+    }
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

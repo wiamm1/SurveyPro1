@@ -1,6 +1,11 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime
 from .database import Base
 
+# =========================================================================
+# 👤 1. جدول المستخدمين (Users)
+# =========================================================================
 class User(Base):
     __tablename__ = "users"
 
@@ -8,3 +13,70 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="user") # مثلاً: admin, user, manager
+
+
+# =========================================================================
+# 📋 2. جدول الاستبيانات (Surveys)
+# =========================================================================
+class Survey(Base):
+    __tablename__ = "surveys"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String, default="Active")  # الحالات: Active, Draft, Archived
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sections_count = Column(Integer, default=0)
+    questions_count = Column(Integer, default=0)
+
+    # 🔄 العلاقة مع الأقسام: إذا حُذف الاستبيان تُحذف جميع أقسامه تلقائياً (CASCADE)
+    sections = relationship("Section", back_populates="survey", cascade="all, delete-orphan", order_by="Section.order_index.asc()")
+
+
+# =========================================================================
+# 📂 3. جدول الأقسام (Sections)
+# =========================================================================
+class Section(Base):
+    __tablename__ = "sections"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String, nullable=False)
+    order_index = Column(Integer, default=0) # لترتيب الأقسام في الواجهة
+
+    # 🔄 العلاقات
+    survey = relationship("Survey", back_populates="sections")
+    questions = relationship("Question", back_populates="section", cascade="all, delete-orphan", order_by="Question.order_index.asc()")
+
+
+# =========================================================================
+# ❓ 4. جدول الأسئلة (Questions)
+# =========================================================================
+class Question(Base):
+    __tablename__ = "questions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    section_id = Column(Integer, ForeignKey("sections.id", ondelete="CASCADE"), nullable=False)
+    text = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # الأنواع: text, radio, checkbox, rating, date
+    is_required = Column(Boolean, default=False)
+    order_index = Column(Integer, default=0) # لترتيب الأسئلة داخل القسم
+
+    # 🔄 العلاقات
+    section = relationship("Section", back_populates="questions")
+    options = relationship("QuestionOption", back_populates="question", cascade="all, delete-orphan", order_by="QuestionOption.order_index.asc()")
+
+
+# =========================================================================
+# 🔘 5. جدول خيارات الأسئلة (Question Options)
+# =========================================================================
+class QuestionOption(Base):
+    __tablename__ = "question_options"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    text = Column(String, nullable=False)
+    order_index = Column(Integer, default=0) # لترتيب الخيارات (مثلا: أولاً، ثانياً...)
+
+    # 🔄 العلاقات
+    question = relationship("Question", back_populates="options")
