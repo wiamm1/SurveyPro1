@@ -45,6 +45,7 @@ const createDefaultQuestion = (orderIndex: number): SurveyQuestion => ({
 const createDefaultSection = (orderIndex: number): SurveySection => ({
   clientId: crypto.randomUUID(),
   title: `Section ${orderIndex + 1}`,
+  description: '',
   order_index: orderIndex,
   questions: [createDefaultQuestion(0)],
 });
@@ -317,6 +318,7 @@ export const SurveyEditorPage = () => {
         template_id: draft.template_id ?? null,
         sections: draft.sections.map((section, sectionIndex) => ({
           title: section.title,
+          description: section.description,
           order_index: sectionIndex,
           questions: section.questions.map((question, questionIndex) => ({
             text: question.text,
@@ -376,17 +378,18 @@ export const SurveyEditorPage = () => {
 
   if (loading || !draft) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+      <div className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
         {t('survey.editor.loading')}
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
+    <div className="mx-auto max-w-4xl space-y-8 pb-32">
+      {/* Fixed/Sticky Top Header */}
+      <div className="sticky top-4 z-20 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-md">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
             <button
               type="button"
               onClick={() => navigate('/surveys')}
@@ -396,22 +399,19 @@ export const SurveyEditorPage = () => {
               {t('common.back')}
             </button>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-bold text-slate-900">
-                {t('survey.editor.title')}
+              <h1 className="text-xl font-bold text-slate-900 line-clamp-1 max-w-sm">
+                {draft.title || t('survey.editor.title')}
               </h1>
               <SurveyStatusBadge status={draft.status} />
             </div>
-            <p className="max-w-2xl text-sm text-slate-500">
-              {t('survey.editor.subtitle')}
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={saveDraft}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save className="h-4 w-4" />
               {saving ? t('survey.editor.saving') : t('survey.editor.save')}
@@ -421,7 +421,7 @@ export const SurveyEditorPage = () => {
               onClick={
                 draft.status === 'active' ? handleUnpublish : handlePublish
               }
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
             >
               <Send className="h-4 w-4" />
               {draft.status === 'active'
@@ -432,76 +432,67 @@ export const SurveyEditorPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+      <main className="space-y-8">
+        {/* Bloc 1: Informations générales */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-900 mb-4">
             {t('survey.editor.generalInfo')}
           </h2>
-          <div className="mt-4 space-y-4">
+          <div className="space-y-4">
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                {t('survey.form.title')}
+                {t('survey.form.title', { defaultValue: "Titre de l'enquête (FR)" })}
               </span>
               <input
                 value={draft.title}
                 onChange={(event) =>
                   setDraft({ ...draft, title: event.target.value })
                 }
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:bg-white"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-base font-semibold outline-none transition focus:border-indigo-500 focus:bg-white"
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                {t('survey.form.description')}
+                {t('survey.form.description', { defaultValue: 'Description (FR)' })}
               </span>
               <textarea
                 value={draft.description || ''}
                 onChange={(event) =>
                   setDraft({ ...draft, description: event.target.value })
                 }
-                rows={5}
+                rows={3}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:bg-white"
               />
             </label>
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="font-semibold text-slate-900">
-                {t('survey.editor.hintTitle')}
-              </p>
-              <p className="mt-1">{t('survey.editor.hintBody')}</p>
-            </div>
           </div>
-        </aside>
+        </section>
 
-        <main className="space-y-5">
+        {/* Bloc 2: Sections */}
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">
+              {t('survey.editor.sections', { defaultValue: 'Sections' })}
+            </h2>
+            <button
+              type="button"
+              onClick={addSection}
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <Plus className="h-4 w-4" />
+              {t('survey.editor.addSection', { defaultValue: 'Ajouter une section' })}
+            </button>
+          </div>
+
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  {t('survey.editor.sections')}
-                </h2>
-                <p className="text-sm text-slate-500">
-                  {t('survey.editor.sectionsSubtitle')}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={addSection}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-              >
-                <Plus className="h-4 w-4" />
-                {t('survey.editor.addSection')}
-              </button>
-            </div>
-
             <SortableContext
               items={draft.sections.map((section) => getSectionId(section))}
               strategy={verticalListSortingStrategy}
             >
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {draft.sections.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
                     {t('survey.editor.empty')}
@@ -518,6 +509,12 @@ export const SurveyEditorPage = () => {
                           title,
                         }))
                       }
+                      onDescriptionChange={(description) =>
+                        updateSection(sectionIndex, (currentSection) => ({
+                          ...currentSection,
+                          description,
+                        }))
+                      }
                       onAddQuestion={() => addQuestion(sectionIndex)}
                       onDelete={() => deleteSection(sectionIndex)}
                     >
@@ -528,7 +525,7 @@ export const SurveyEditorPage = () => {
                         strategy={verticalListSortingStrategy}
                       >
                         {section.questions.length === 0 ? (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
                             {t('survey.editor.noQuestions')}
                           </div>
                         ) : (
@@ -557,8 +554,8 @@ export const SurveyEditorPage = () => {
               </div>
             </SortableContext>
           </DndContext>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };

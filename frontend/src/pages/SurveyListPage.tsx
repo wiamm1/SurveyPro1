@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MoreVertical, Pencil, Copy, Trash2, Play, Pause } from 'lucide-react';
+import {
+  MoreVertical,
+  Pencil,
+  Copy,
+  Trash2,
+  Play,
+  Pause,
+  FileText,
+  Calendar,
+  BarChart2,
+  Search,
+  Plus
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -94,6 +106,7 @@ export const SurveyListPage = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {/* Header section */}
       <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-600">
@@ -112,28 +125,35 @@ export const SurveyListPage = () => {
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}
-              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
             >
+              <Plus className="h-5 w-5" />
               {t('survey.list.create')}
             </button>
           )}
         </div>
       </div>
 
+      {/* Filters section */}
       <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_220px_auto] lg:items-end">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
             {t('survey.filters.search')}
           </span>
-          <input
-            value={search}
-            onChange={(event) => {
-              setPage(1);
-              setSearch(event.target.value);
-            }}
-            placeholder={t('survey.filters.searchPlaceholder')}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:bg-white"
-          />
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <input
+              value={search}
+              onChange={(event) => {
+                setPage(1);
+                setSearch(event.target.value);
+              }}
+              placeholder={t('survey.filters.searchPlaceholder')}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-indigo-500 focus:bg-white"
+            />
+          </div>
         </label>
 
         <label className="block">
@@ -172,161 +192,165 @@ export const SurveyListPage = () => {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                <th className="px-6 py-4">{t('survey.table.title')}</th>
-                <th className="px-6 py-4">{t('survey.table.status')}</th>
-                <th className="px-6 py-4">{t('survey.table.sections')}</th>
-                <th className="px-6 py-4">{t('survey.table.questions')}</th>
-                <th className="px-6 py-4">{t('survey.table.createdAt')}</th>
-                <th className="px-6 py-4 text-right">
-                  {t('survey.table.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading && surveys.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-10 text-center text-sm text-slate-500"
+      {/* Cards List */}
+      <div className="space-y-4">
+        {isLoading && surveys.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
+            {t('survey.list.loading')}
+          </div>
+        ) : surveys.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
+            {t('survey.list.empty')}
+          </div>
+        ) : (
+          surveys.map((survey) => (
+            <div
+              key={survey.id}
+              className="group relative flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md sm:flex-row sm:items-center"
+            >
+              {/* Icon */}
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                <FileText className="h-6 w-6" />
+              </div>
+
+              {/* Info */}
+              <div className="flex flex-1 flex-col justify-center">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-base font-bold text-slate-900">
+                    {survey.title}
+                  </h3>
+                  <SurveyStatusBadge status={survey.status} />
+                </div>
+                <p className="mt-1 line-clamp-1 text-sm text-slate-500">
+                  {survey.description || t('survey.list.noDescription')}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                    {survey.created_at
+                      ? new Date(survey.created_at).toLocaleDateString()
+                      : '-'}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                    {survey.sections_count} {t('survey.table.sections').toLowerCase()}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                    {survey.questions_count} {t('survey.table.questions').toLowerCase()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex shrink-0 items-center gap-2 border-t border-slate-100 pt-4 sm:border-t-0 sm:pt-0">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/surveys/${survey.id}/edit`)}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-indigo-600"
+                >
+                  <Pencil className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('survey.actions.edit')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/surveys/${survey.id}/analytics`)}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-indigo-600"
+                >
+                  <BarChart2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('survey.actions.analytics', { defaultValue: 'Analytics' })}</span>
+                </button>
+
+                <div className="relative inline-block text-left">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenMenuId(
+                        openMenuId === survey.id ? null : survey.id
+                      )
+                    }
+                    aria-label={t('survey.table.actions')}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-indigo-600"
                   >
-                    {t('survey.list.loading')}
-                  </td>
-                </tr>
-              ) : surveys.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-10 text-center text-sm text-slate-500"
-                  >
-                    {t('survey.list.empty')}
-                  </td>
-                </tr>
-              ) : (
-                surveys.map((survey) => (
-                  <tr
-                    key={survey.id}
-                    className="align-top hover:bg-slate-50/60"
-                  >
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {survey.title}
-                        </p>
-                        <p className="mt-1 max-w-lg text-sm text-slate-500 line-clamp-2">
-                          {survey.description || t('survey.list.noDescription')}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <SurveyStatusBadge status={survey.status} />
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {survey.sections_count}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {survey.questions_count}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {survey.created_at
-                        ? new Date(survey.created_at).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="relative inline-block text-left">
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+
+                  {openMenuId === survey.id && (
+                    <>
+                      <button
+                        type="button"
+                        className="fixed inset-0 z-10"
+                        onClick={() => setOpenMenuId(null)}
+                        aria-label={t('common.close')}
+                      />
+                      <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
                         <button
                           type="button"
-                          onClick={() =>
-                            setOpenMenuId(
-                              openMenuId === survey.id ? null : survey.id
-                            )
-                          }
-                          aria-label={t('survey.table.actions')}
-                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            navigate(`/surveys/${survey.id}/edit`);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                         >
-                          <MoreVertical className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
+                          {t('survey.actions.edit')}
                         </button>
-
-                        {openMenuId === survey.id && (
-                          <>
-                            <button
-                              type="button"
-                              className="fixed inset-0 z-10"
-                              onClick={() => setOpenMenuId(null)}
-                              aria-label={t('common.close')}
-                            />
-                            <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  navigate(`/surveys/${survey.id}/edit`);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              >
-                                <Pencil className="h-4 w-4" />
-                                {t('survey.actions.edit')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setOpenMenuId(null);
-                                  await handleDuplicate(survey.id);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              >
-                                <Copy className="h-4 w-4" />
-                                {t('survey.actions.duplicate')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setOpenMenuId(null);
-                                  await handleToggleStatus(
-                                    survey.id,
-                                    survey.status
-                                  );
-                                }}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              >
-                                {survey.status === 'active' ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                                {survey.status === 'active'
-                                  ? t('survey.actions.unpublish')
-                                  : t('survey.actions.publish')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setOpenMenuId(null);
-                                  await handleDelete(survey.id);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                {t('survey.actions.delete')}
-                              </button>
-                            </div>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setOpenMenuId(null);
+                            await handleDuplicate(survey.id);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <Copy className="h-4 w-4" />
+                          {t('survey.actions.duplicate')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setOpenMenuId(null);
+                            await handleToggleStatus(
+                              survey.id,
+                              survey.status
+                            );
+                          }}
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          {survey.status === 'active' ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                          {survey.status === 'active'
+                            ? t('survey.actions.unpublish')
+                            : t('survey.actions.publish')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setOpenMenuId(null);
+                            await handleDelete(survey.id);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {t('survey.actions.delete')}
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
 
-        <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 text-sm text-slate-500">
-          <p>
+      {/* Pagination */}
+      {surveys.length > 0 && (
+        <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+          <p className="text-sm text-slate-500">
             {t('survey.list.paginationInfo', {
               count: surveys.length,
               total,
@@ -337,24 +361,24 @@ export const SurveyListPage = () => {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-50 hover:not-disabled:bg-slate-50"
             >
               {t('common.previous')}
             </button>
-            <span className="rounded-xl bg-slate-100 px-3 py-2 font-semibold text-slate-700">
+            <span className="flex items-center justify-center rounded-xl bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
               {page} / {pageCount}
             </span>
             <button
               type="button"
               disabled={page >= pageCount}
               onClick={() => setPage((current) => current + 1)}
-              className="rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-50 hover:not-disabled:bg-slate-50"
             >
               {t('common.next')}
             </button>
           </div>
         </div>
-      </div>
+      )}
 
       <SurveyCreateModal
         isOpen={isCreateOpen}
@@ -364,3 +388,4 @@ export const SurveyListPage = () => {
     </div>
   );
 };
+
