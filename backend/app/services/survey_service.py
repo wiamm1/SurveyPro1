@@ -39,6 +39,16 @@ def _serialize_option(option: models.QuestionOption) -> dict[str, Any]:
     }
 
 
+def _serialize_conditional_rule(rule: models.QuestionConditionalLogic) -> dict[str, Any]:
+    return {
+        "id": rule.id,
+        "question_id": rule.question_id,
+        "condition_option_id": rule.condition_option_id,
+        "target_question_id": rule.target_question_id,
+        "action": rule.action,
+    }
+
+
 def _serialize_question(question: models.Question) -> dict[str, Any]:
     return {
         "id": question.id,
@@ -51,6 +61,7 @@ def _serialize_question(question: models.Question) -> dict[str, Any]:
         "settings": question.settings or {},
         "created_at": question.created_at,
         "options": [_serialize_option(option) for option in question.options],
+        "conditional_rules": [_serialize_conditional_rule(rule) for rule in question.conditional_rules],
     }
 
 
@@ -59,6 +70,7 @@ def _serialize_section(section: models.Section) -> dict[str, Any]:
         "id": section.id,
         "survey_id": section.survey_id,
         "title": section.title,
+        "description": section.description,
         "order_index": section.order_index,
         "created_at": section.created_at,
         "questions": [_serialize_question(question) for question in section.questions],
@@ -94,6 +106,9 @@ def _load_survey_for_company(db: Session, survey_id: int, current_user: dict[str
             selectinload(models.Survey.sections)
             .selectinload(models.Section.questions)
             .selectinload(models.Question.options),
+            selectinload(models.Survey.sections)
+            .selectinload(models.Section.questions)
+            .selectinload(models.Question.conditional_rules),
             selectinload(models.Survey.sections).selectinload(models.Section.questions),
             selectinload(models.Survey.sections),
         )
@@ -192,11 +207,11 @@ def _survey_is_publishable(survey: models.Survey) -> None:
 
     for section in survey.sections:
         for question in section.questions:
-            if question.type in {models.QuestionType.radio.value, models.QuestionType.checkbox.value}:
+            if question.type in {models.QuestionType.single_choice.value, models.QuestionType.multiple_choice.value}:
                 if len(question.options) < 2:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Les questions radio et checkbox doivent contenir au moins 2 options.",
+                        detail="Les questions à choix unique et choix multiples doivent contenir au moins 2 options.",
                     )
 
 
@@ -247,6 +262,84 @@ def get_survey(db: Session, survey_id: int, current_user: dict[str, Any]) -> dic
     return serialize_survey(survey, include_sections=True)
 
 
+def _save_sections_questions_options_and_logic(db: Session, survey_id: int, sections_payload: list[schemas.SectionCreate]) -> None:
+    question_id_map = {}
+    option_id_map = {}
+    all_rules_to_create = []
+
+    # Convert template structure dicts to Pydantic models if they are dictionaries
+    parsed_sections = []
+    for s in sections_payload:
+        if isinstance(s, dict):
+            # parse template sections
+            # templates structure could contain raw dict questions / options
+            parsed_sections.append(schemas.SectionCreate(**s))
+        else:
+            parsed_sections.append(s)
+
+    for section_index, section_data in enumerate(parsed_sections):
+        section = models.Section(
+            survey_id=survey_id,
+            title=section_data.title,
+            description=section_data.description,
+            order_index=section_data.order_index if section_data.order_index is not None else section_index,
+        )
+        db.add(section)
+        db.flush()
+
+        for question_index, question_data in enumerate(section_data.questions):
+            question = models.Question(
+                section_id=section.id,
+                survey_id=survey_id,
+                text=question_data.text,
+                type=question_data.type.value if hasattr(question_data.type, "value") else str(question_data.type),
+                is_required=question_data.is_required,
+                order_index=question_data.order_index if question_data.order_index is not None else question_index,
+                settings=question_data.settings,
+            )
+            db.add(question)
+            db.flush()
+
+            if question_data.id is not None:
+                question_id_map[question_data.id] = question.id
+
+            for option_index, option_data in enumerate(question_data.options):
+                option = models.QuestionOption(
+                    question_id=question.id,
+                    text=option_data.text,
+                    order_index=option_data.order_index if option_data.order_index is not None else option_index,
+                )
+                db.add(option)
+                db.flush()
+                
+                if option_data.id is not None:
+                    option_id_map[option_data.id] = option.id
+
+            if hasattr(question_data, "conditional_rules") and question_data.conditional_rules:
+                for rule_data in question_data.conditional_rules:
+                    all_rules_to_create.append((question.id, rule_data))
+
+    for source_question_id, rule_data in all_rules_to_create:
+        resolved_target_id = question_id_map.get(rule_data.target_question_id)
+        if resolved_target_id is None:
+            resolved_target_id = rule_data.target_question_id
+
+        resolved_option_id = None
+        if rule_data.condition_option_id is not None:
+            resolved_option_id = option_id_map.get(rule_data.condition_option_id)
+            if resolved_option_id is None:
+                resolved_option_id = rule_data.condition_option_id
+
+        rule = models.QuestionConditionalLogic(
+            question_id=source_question_id,
+            condition_option_id=resolved_option_id,
+            target_question_id=resolved_target_id,
+            action=rule_data.action,
+        )
+        db.add(rule)
+    db.flush()
+
+
 def create_survey(db: Session, payload: schemas.SurveyCreate, current_user: dict[str, Any]) -> dict[str, Any]:
     _ensure_manage_rights(current_user)
     company_id = current_user.get("company_id")
@@ -279,36 +372,7 @@ def create_survey(db: Session, payload: schemas.SurveyCreate, current_user: dict
         template_structure = template.structure or {}
         sections_payload = template_structure.get("sections", []) if isinstance(template_structure, dict) else []
 
-    for section_index, section_data in enumerate(sections_payload):
-        section = models.Section(
-            survey_id=survey.id,
-            title=section_data.title,
-            order_index=section_data.order_index if section_data.order_index is not None else section_index,
-        )
-        db.add(section)
-        db.flush()
-
-        for question_index, question_data in enumerate(section_data.questions):
-            question = models.Question(
-                section_id=section.id,
-                survey_id=survey.id,
-                text=question_data.text,
-                type=question_data.type.value if hasattr(question_data.type, "value") else str(question_data.type),
-                is_required=question_data.is_required,
-                order_index=question_data.order_index if question_data.order_index is not None else question_index,
-                settings=question_data.settings,
-            )
-            db.add(question)
-            db.flush()
-
-            for option_index, option_data in enumerate(question_data.options):
-                db.add(
-                    models.QuestionOption(
-                        question_id=question.id,
-                        text=option_data.text,
-                        order_index=option_data.order_index if option_data.order_index is not None else option_index,
-                    )
-                )
+    _save_sections_questions_options_and_logic(db, survey.id, sections_payload)
 
     _refresh_counters(db, survey.id)
     db.commit()
@@ -328,37 +392,9 @@ def save_full_survey(db: Session, survey_id: int, payload: schemas.SurveyCreate,
 
     db.query(models.Section).filter(models.Section.survey_id == survey.id).delete(synchronize_session=False)
     db.flush()
+    db.expire_all()
 
-    for section_index, section_data in enumerate(payload.sections):
-        section = models.Section(
-            survey_id=survey.id,
-            title=section_data.title,
-            order_index=section_data.order_index if section_data.order_index is not None else section_index,
-        )
-        db.add(section)
-        db.flush()
-
-        for question_index, question_data in enumerate(section_data.questions):
-            question = models.Question(
-                section_id=section.id,
-                survey_id=survey.id,
-                text=question_data.text,
-                type=question_data.type.value if hasattr(question_data.type, "value") else str(question_data.type),
-                is_required=question_data.is_required,
-                order_index=question_data.order_index if question_data.order_index is not None else question_index,
-                settings=question_data.settings,
-            )
-            db.add(question)
-            db.flush()
-
-            for option_index, option_data in enumerate(question_data.options):
-                db.add(
-                    models.QuestionOption(
-                        question_id=question.id,
-                        text=option_data.text,
-                        order_index=option_data.order_index if option_data.order_index is not None else option_index,
-                    )
-                )
+    _save_sections_questions_options_and_logic(db, survey.id, payload.sections)
 
     _reindex_sections(db, survey.id)
     _refresh_counters(db, survey.id)
@@ -402,7 +438,7 @@ def duplicate_survey(db: Session, survey_id: int, current_user: dict[str, Any]) 
     source = _load_survey_for_company(db, survey_id, current_user, include_sections=True)
 
     duplicated = models.Survey(
-        title=f"{source.title} (Copy)",
+        title=f"{source.title} (Copie)",
         description=source.description,
         status=models.SurveyStatus.draft.value,
         company_id=source.company_id,
@@ -412,10 +448,16 @@ def duplicate_survey(db: Session, survey_id: int, current_user: dict[str, Any]) 
     db.add(duplicated)
     db.flush()
 
+    # Map original question IDs -> new question IDs (for copying conditional logic)
+    question_id_map: dict[int, int] = {}
+    # Map original option IDs -> new option IDs
+    option_id_map: dict[int, int] = {}
+
     for section in source.sections:
         duplicated_section = models.Section(
             survey_id=duplicated.id,
             title=section.title,
+            description=section.description,
             order_index=section.order_index,
         )
         db.add(duplicated_section)
@@ -433,15 +475,33 @@ def duplicate_survey(db: Session, survey_id: int, current_user: dict[str, Any]) 
             )
             db.add(duplicated_question)
             db.flush()
+            question_id_map[question.id] = duplicated_question.id
 
             for option in question.options:
-                db.add(
-                    models.QuestionOption(
-                        question_id=duplicated_question.id,
-                        text=option.text,
-                        order_index=option.order_index,
-                    )
+                duplicated_option = models.QuestionOption(
+                    question_id=duplicated_question.id,
+                    text=option.text,
+                    order_index=option.order_index,
                 )
+                db.add(duplicated_option)
+                db.flush()
+                option_id_map[option.id] = duplicated_option.id
+
+    # Copy conditional logic rules, remapping IDs to the new question/option IDs
+    for section in source.sections:
+        for question in section.questions:
+            for rule in question.conditional_rules:
+                new_question_id = question_id_map.get(rule.question_id)
+                new_target_id = question_id_map.get(rule.target_question_id)
+                new_option_id = option_id_map.get(rule.condition_option_id) if rule.condition_option_id else None
+
+                if new_question_id and new_target_id:
+                    db.add(models.QuestionConditionalLogic(
+                        question_id=new_question_id,
+                        condition_option_id=new_option_id,
+                        target_question_id=new_target_id,
+                        action=rule.action,
+                    ))
 
     _refresh_counters(db, duplicated.id)
     db.commit()
@@ -482,38 +542,22 @@ def add_section(db: Session, survey_id: int, payload: schemas.SectionCreate, cur
         .all()
     )
     insert_at = _normalize_order_index(payload.order_index, len(sections))
-    for section in sections[insert_at:]:
-        section.order_index += 1
+    for s in sections[insert_at:]:
+        s.order_index += 1
 
-    section = models.Section(survey_id=survey.id, title=payload.title, order_index=insert_at)
-    db.add(section)
-    db.flush()
+    payload.order_index = insert_at
+    _save_sections_questions_options_and_logic(db, survey.id, [payload])
 
-    for question_index, question_data in enumerate(payload.questions):
-        question = models.Question(
-            survey_id=survey.id,
-            section_id=section.id,
-            text=question_data.text,
-            type=question_data.type.value if hasattr(question_data.type, "value") else str(question_data.type),
-            is_required=question_data.is_required,
-            order_index=question_data.order_index if question_data.order_index is not None else question_index,
-            settings=question_data.settings,
-        )
-        db.add(question)
-        db.flush()
-        for option_index, option_data in enumerate(question_data.options):
-            db.add(
-                models.QuestionOption(
-                    question_id=question.id,
-                    text=option_data.text,
-                    order_index=option_data.order_index if option_data.order_index is not None else option_index,
-                )
-            )
+    # Re-retrieve the created section by survey and order_index
+    section = (
+        db.query(models.Section)
+        .filter(models.Section.survey_id == survey.id, models.Section.order_index == insert_at)
+        .first()
+    )
 
     _reindex_sections(db, survey.id)
     _refresh_counters(db, survey.id)
     db.commit()
-    db.refresh(section)
     return _serialize_section(section)
 
 
@@ -523,6 +567,8 @@ def update_section(db: Session, section_id: int, payload: schemas.SectionUpdate,
 
     if payload.title is not None:
         section.title = payload.title
+    if payload.description is not None:
+        section.description = payload.description
     if payload.order_index is not None:
         section.order_index = payload.order_index
         _reindex_sections(db, section.survey_id)
@@ -569,20 +615,39 @@ def add_question(db: Session, section_id: int, payload: schemas.QuestionCreate, 
     db.add(question)
     db.flush()
 
-    if question.type in {models.QuestionType.radio.value, models.QuestionType.checkbox.value} and len(payload.options) < 2:
+    if question.type in {models.QuestionType.single_choice.value, models.QuestionType.multiple_choice.value} and len(payload.options) < 2:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Les questions radio et checkbox doivent contenir au moins 2 options.",
+            detail="Les questions à choix unique et choix multiples doivent contenir au moins 2 options.",
         )
 
+    question_id_map = {payload.id: question.id} if payload.id is not None else {}
+    option_id_map = {}
+
     for option_index, option_data in enumerate(payload.options):
-        db.add(
-            models.QuestionOption(
-                question_id=question.id,
-                text=option_data.text,
-                order_index=option_data.order_index if option_data.order_index is not None else option_index,
-            )
+        option = models.QuestionOption(
+            question_id=question.id,
+            text=option_data.text,
+            order_index=option_data.order_index if option_data.order_index is not None else option_index,
         )
+        db.add(option)
+        db.flush()
+        if option_data.id is not None:
+            option_id_map[option_data.id] = option.id
+
+    if payload.conditional_rules:
+        for rule_data in payload.conditional_rules:
+            resolved_target_id = question_id_map.get(rule_data.target_question_id, rule_data.target_question_id)
+            resolved_option_id = option_id_map.get(rule_data.condition_option_id, rule_data.condition_option_id)
+            
+            rule = models.QuestionConditionalLogic(
+                question_id=question.id,
+                condition_option_id=resolved_option_id,
+                target_question_id=resolved_target_id,
+                action=rule_data.action,
+            )
+            db.add(rule)
+        db.flush()
 
     _reindex_questions(db, section.id)
     _refresh_counters(db, section.survey_id)
@@ -633,10 +698,10 @@ def replace_question_options(
     _ensure_manage_rights(current_user)
     question = _load_question_for_company(db, question_id, current_user)
 
-    if question.type in {models.QuestionType.radio.value, models.QuestionType.checkbox.value} and len(options_payload) < 2:
+    if question.type in {models.QuestionType.single_choice.value, models.QuestionType.multiple_choice.value} and len(options_payload) < 2:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Les questions radio et checkbox doivent contenir au moins 2 options.",
+            detail="Les questions à choix unique et choix multiples doivent contenir au moins 2 options.",
         )
 
     db.query(models.QuestionOption).filter(models.QuestionOption.question_id == question.id).delete()

@@ -51,6 +51,7 @@ class UserStatusUpdate(BaseModel):
 
 
 class QuestionOptionCreate(BaseModel):
+    id: Optional[int] = None
     text: str
     order_index: int = 0
 
@@ -62,13 +63,29 @@ class QuestionOptionResponse(QuestionOptionCreate):
         from_attributes = True
 
 
+class QuestionConditionalLogicCreate(BaseModel):
+    condition_option_id: Optional[int] = None
+    target_question_id: int
+    action: str  # "show" ou "skip_to"
+
+
+class QuestionConditionalLogicResponse(QuestionConditionalLogicCreate):
+    id: int
+    question_id: int
+
+    class Config:
+        from_attributes = True
+
+
 class QuestionCreate(BaseModel):
+    id: Optional[int] = None
     text: str
     type: QuestionType
     is_required: bool = False
     order_index: int = 0
     settings: dict[str, Any] | None = None
     options: list[QuestionOptionCreate] = Field(default_factory=list)
+    conditional_rules: list[QuestionConditionalLogicCreate] = Field(default_factory=list)
 
 
 class QuestionUpdate(BaseModel):
@@ -84,6 +101,7 @@ class QuestionResponse(QuestionCreate):
     section_id: int
     survey_id: int
     options: list[QuestionOptionResponse] = Field(default_factory=list)
+    conditional_rules: list[QuestionConditionalLogicResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -91,12 +109,14 @@ class QuestionResponse(QuestionCreate):
 
 class SectionCreate(BaseModel):
     title: str
+    description: Optional[str] = None
     order_index: int = 0
     questions: list[QuestionCreate] = Field(default_factory=list)
 
 
 class SectionUpdate(BaseModel):
     title: Optional[str] = None
+    description: Optional[str] = None
     order_index: Optional[int] = None
 
 

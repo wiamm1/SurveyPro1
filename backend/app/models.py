@@ -14,10 +14,9 @@ class SurveyStatus(str, Enum):
 
 
 class QuestionType(str, Enum):
-    radio = "radio"
-    checkbox = "checkbox"
-    text_short = "text_short"
-    text_long = "text_long"
+    single_choice = "single_choice"
+    multiple_choice = "multiple_choice"
+    text = "text"
     scale = "scale"
     matrix = "matrix"
     date = "date"
@@ -87,6 +86,7 @@ class Section(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
+    description = Column(Text, nullable=True) # Description de la section
     order_index = Column(Integer, default=0) # لترتيب الأقسام في الواجهة
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -115,6 +115,7 @@ class Question(Base):
     section = relationship("Section", back_populates="questions")
     survey = relationship("Survey", back_populates="questions")
     options = relationship("QuestionOption", back_populates="question", cascade="all, delete-orphan", order_by="QuestionOption.order_index.asc()")
+    conditional_rules = relationship("QuestionConditionalLogic", foreign_keys="[QuestionConditionalLogic.question_id]", cascade="all, delete-orphan", back_populates="question")
 
 
 # =========================================================================
@@ -131,6 +132,24 @@ class QuestionOption(Base):
 
     # 🔄 العلاقات
     question = relationship("Question", back_populates="options")
+
+
+# =========================================================================
+# 🔀 6. جدول المنطق الشرطي للأسئلة (Question Conditional Logic)
+# =========================================================================
+class QuestionConditionalLogic(Base):
+    __tablename__ = "question_conditional_logic"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    condition_option_id = Column(Integer, ForeignKey("question_options.id", ondelete="CASCADE"), nullable=True)
+    target_question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String, nullable=False)  # "show" ou "skip_to"
+
+    # 🔄 العلاقات
+    question = relationship("Question", foreign_keys=[question_id], back_populates="conditional_rules")
+    condition_option = relationship("QuestionOption", foreign_keys=[condition_option_id])
+    target_question = relationship("Question", foreign_keys=[target_question_id])
 
 
 class SurveyTemplate(Base):
