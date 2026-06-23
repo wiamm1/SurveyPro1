@@ -48,7 +48,7 @@ def seed_templates():
                         "questions": [
                             {
                                 "text": "Qu'avez-vous le plus apprécié ?",
-                                "type": "text_long",
+                                "type": "text",
                                 "is_required": False,
                                 "order_index": 0,
                                 "settings": {},
@@ -56,7 +56,7 @@ def seed_templates():
                             },
                             {
                                 "text": "Que pourrions-nous améliorer ?",
-                                "type": "text_long",
+                                "type": "text",
                                 "is_required": False,
                                 "order_index": 1,
                                 "settings": {},
@@ -120,19 +120,33 @@ def seed_templates():
             is_active=True
         )
 
-        # Check if they exist to avoid unique constraint violation on 'name'
-        existing_names = [t.name for t in db.query(SurveyTemplate.name).all()]
+        existing_templates = {t.name: t for t in db.query(SurveyTemplate).all()}
         
         added = 0
-        if template1.name not in existing_names:
+        updated = 0
+
+        if template1.name in existing_templates:
+            existing = existing_templates[template1.name]
+            existing.structure = template1.structure
+            existing.title = template1.title
+            existing.description = template1.description
+            updated += 1
+        else:
             db.add(template1)
             added += 1
-        if template2.name not in existing_names:
+
+        if template2.name in existing_templates:
+            existing = existing_templates[template2.name]
+            existing.structure = template2.structure
+            existing.title = template2.title
+            existing.description = template2.description
+            updated += 1
+        else:
             db.add(template2)
             added += 1
 
         db.commit()
-        print(f"{added} templates ajoutés avec succès.")
+        print(f"{added} templates ajoutés, {updated} mis à jour avec succès.")
     except Exception as e:
         db.rollback()
         print(f"Erreur lors de l'ajout des templates: {e}")
